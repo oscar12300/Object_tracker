@@ -3,8 +3,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 object_positions = []
+K = 1000
+frame_count = 0 #幀數計算
+record_interval = 5 #每5幀記錄一次
 
 while True:
     ret, frame = cap.read()
@@ -24,17 +27,25 @@ while True:
     contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     for contour in contours:
-        if cv2.contourArea(contour) > 500:
+        if cv2.contourArea(contour) > 1000: #當標記範圍大於一定值才紀錄
             #長方形座標(x,y為左上角座標，w表寬度，h表高度)
             x, y, w, h = cv2.boundingRect(contour)
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cv2.putText(frame, f"({x},{y})", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             #計算深度
-            K = 1000
             z = K / (w + h) # w+h越小代表物體越遠，反之則越近
-            object_positions.append((x, y, z))
-   
 
+            # 避免數據過度變動
+            if len(object_positions) > 2:
+                prev_x, prev_y, prev_z = object_positions[-1]
+                if abs(x - prev_x) < 10 and abs(y - prev_y) < 10:  
+                    continue  # 忽略小變化，減少雜訊
+
+            # 控制記錄頻率
+            if frame_count % record_interval == 0:
+                object_positions.append((x, y, z))
+   
+    frame_count += 1
     cv2.imshow("Tracking Red Object", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -57,5 +68,7 @@ ax.plot(x_vals, y_vals, z_vals, label="Object Path")
 ax.set_xlabel("X Axis")
 ax.set_ylabel("Y Axis")
 ax.set_zlabel("Z Axis (Depth)")
+
+
 ax.legend()
 plt.show()
